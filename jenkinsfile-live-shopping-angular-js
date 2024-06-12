@@ -1,0 +1,123 @@
+pipeline {
+    agent {
+        label 'slave-1'
+    }
+
+    environment {
+        PATH = "/opt/sonar-scanner/bin:$PATH"
+    }    
+
+    stages {
+        stage('SonarQube analysis for Feature-Branch') {
+            when {
+                expression {
+                    return (env.CHANGE_BRANCH ==~ /^(feature|initialDevelopment|fixes|hotfix)\/.*$/) && env.CHANGE_TARGET == 'development'
+                }
+            }
+            steps {
+                script {
+                    withSonarQubeEnv('LIVE_SHOPPING_SONAR_HOST_URL') {
+                        sh 'sonar-scanner -Dsonar.projectKey=live-shopping-admin-web-app -Dsonar.projectName="live-shopping-admin-web-app" -Dsonar.qualitygate.wait=true -Dsonar.login=b0d0730a7304b3997616dd059c28ce7e15b69ae3'
+                        echo "Auto merging"
+                        echo "SOURCE_BRANCH: ${env.CHANGE_BRANCH} ----> TARGET_BRANCH: ${env.CHANGE_TARGET}"
+                        sh 'rm -rf live-shopping-admin-web-app'
+                        sh 'git clone git@bitbucket.org-prashantdhole2894:solutionanalystspvtltd/live-shopping-admin-web-app.git'
+                        dir('live-shopping-admin-web-app') {
+                            sh 'git fetch origin'
+                            sh 'git branch -a'
+                            sh 'git config --global user.email prashant.dhole@solutionanalysts.com'
+                            sh 'git config --global user.name prashantdhole2894'
+                            sh 'git checkout $CHANGE_TARGET'
+                            sh 'git merge origin/$CHANGE_BRANCH'
+                            sh 'git push origin $CHANGE_TARGET'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Build Development branch') {
+            when { branch 'development'}
+            agent {
+                docker { 
+                    image 'node:18.12.0' 
+                    args '-u root'
+                    reuseNode true
+                }
+            }
+            steps {
+                sh "echo starting build for development branch"
+                sh 'npm i'
+                sh 'npm run build-dev'
+            }
+        } 
+
+        stage('Deploy to development s3 bucket') {
+            when { branch 'development'}
+            steps {
+                withAWS(region:'ap-south-1',credentials:'live-shopping-aws-key') {
+                    sh '''
+                        aws s3 sync dist-dev/. s3://live-shopping-admin-web-app-dev/ 
+                        aws cloudfront create-invalidation --distribution-id E2AI22VBNKO48Z  --paths '/*'
+                    '''
+                }    
+            }
+        }  
+
+        stage('Build stage branch') {
+            when { branch 'stage'}
+            agent {
+                docker { 
+                    image 'node:18.12.0' 
+                    args '-u root'
+                    reuseNode true
+                }
+            }
+            steps {
+                sh "echo starting build for stage branch"
+                sh 'npm i'
+                sh 'npm run build-stage'
+            }
+        } 
+
+        stage('Deploy to stage s3 bucket') {
+            when { branch 'stage'}
+            steps {
+                withAWS(region:'ap-south-1',credentials:'live-shopping-aws-key') {
+                    sh '''
+                        aws s3 sync dist-stage/. s3://live-shopping-admin-web-app-stage/ 
+                        aws cloudfront create-invalidation --distribution-id E2X8WGS2RG1YTY --paths '/*'
+                    '''
+                }    
+            }
+        }
+
+        stage('Build master branch') {
+            when { branch 'master'}
+            agent {
+                docker { 
+                    image 'node:18.12.0' 
+                    args '-u root'
+                    reuseNode true
+                }
+            }
+            steps {
+                sh "echo starting build for master branch"
+                sh 'npm i'
+                sh 'npm run build-production'
+            }
+        }
+        stage('Deploy to master s3 bucket') {
+            when { branch 'master'}
+            steps {
+                withAWS(region:'ap-south-1',credentials:'live-shopping-aws-key') {
+                    sh '''
+                        aws s3 sync dist-prod/. s3://live-shopping-admin-web-app-prod/ 
+                        aws cloudfront create-invalidation --distribution-id E3FPA3KGJEKN5U --paths '/*'
+                    '''
+                }
+            }
+        }
+    }    
+}
+

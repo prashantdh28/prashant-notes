@@ -1,0 +1,173 @@
+pipeline {
+    agent {
+        label 'slave-1'
+    }
+
+    environment {
+        PATH = "/opt/sonar-scanner/bin:$PATH"
+    }
+
+    stages {
+
+        stage('SonarQube analysis for Feature-Branch') {
+            when {
+                expression {
+                    return (env.CHANGE_BRANCH ==~ /^(feature|fixes|hotfix)\/.*$/) && env.CHANGE_TARGET == 'development'
+                }
+            }
+            steps {
+                script {
+                    withSonarQubeEnv('LIVE_SHOPPING_SONAR_HOST_URL') {
+                        sh 'sonar-scanner -Dsonar.projectKey=live-shopping-authentication-node-service -Dsonar.projectName="live-shopping-authentication-node-service" -Dsonar.qualitygate.wait=true -Dsonar.login=b0d0730a7304b3997616dd059c28ce7e15b69ae3'
+                        echo "Auto merging"
+                        echo "SOURCE_BRANCH: ${env.CHANGE_BRANCH} ----> TARGET_BRANCH: ${env.CHANGE_TARGET}"
+                        sh 'rm -rf live-shopping-authentication-node-service'
+                        sh 'git clone git@bitbucket.org-prashantdhole2894:solutionanalystspvtltd/live-shopping-authentication-node-service.git'
+                        dir('live-shopping-authentication-node-service') {
+                            sh 'git fetch origin'
+                            sh 'git branch -a'
+                            sh 'git config --global user.email prashant.dhole@solutionanalysts.com'
+                            sh 'git config --global user.name prashantdhole2894'
+                            sh 'git checkout $CHANGE_TARGET'
+                            sh 'git merge origin/$CHANGE_BRANCH'
+                            sh 'git push origin $CHANGE_TARGET'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Build Development branch') {
+            when { expression { env.BRANCH_NAME == 'development' } }
+            steps {
+                script {
+                    echo "Starting to build the image"
+                    sh 'docker build -t dev .'
+                    sh 'docker run -dt --name dev-auth -p 3000:3000 dev'
+                }
+            }
+        }
+
+        stage('Copying development build and remove image') {
+            when { expression { env.BRANCH_NAME == 'development' } }
+            steps {
+                script {
+                    echo "Copying build folder"
+                    sh 'docker cp dev-auth:/app/. .'
+                    sh 'docker stop dev-auth && docker rm dev-auth && docker rmi dev'
+                }
+            }
+        }
+
+        stage('Deploy development branch') {
+            when { expression { env.BRANCH_NAME == 'development' } }
+            steps {
+                script {
+                    echo "Starting deploying for development branch"
+                    sh 'rsync -zvhr -e ssh . ubuntu@35.154.252.153:/home/ubuntu/live-shopping-dev-stag/live-shopping-authentication-node-service/'
+                    sh """ ssh ubuntu@35.154.252.153 'pm2 restart live-shopping-auth-node-svc-dev' """
+                    echo "Successfully deployed and pm2 restarted"
+                }
+            }
+        }
+
+        stage('Building stage branch') {
+            when { expression { env.BRANCH_NAME == 'stage' } }
+            steps {
+                script {
+                    echo "Starting to build the image"
+                    sh 'docker build -t stage .'
+                    sh 'docker run -dt --name stage-auth -p 7000:7000 stage'
+                }
+            }
+        }
+
+        stage('Copying stage build and remove image') {
+            when { expression { env.BRANCH_NAME == 'stage' } }
+            steps {
+                script {
+                    echo "Copying build folder"
+                    sh 'docker cp stage-auth:/app/. .'
+                    sh 'docker stop stage-auth && docker rm stage-auth && docker rmi stage'
+                }
+            }
+        }
+
+        stage('Deploy stage branch') {
+            when { expression { env.BRANCH_NAME == 'stage' } }
+            steps {
+                script {
+                    echo "Starting deploying stage branch"
+                    sh 'rsync -zvhr -e ssh . ubuntu@35.154.252.153:/home/ubuntu/live-shopping-dev-stag/stage/live-shopping-authentication-node-service/'
+                    sh """ ssh ubuntu@35.154.252.153 'pm2 restart live-shopping-auth-node-svc-stage' """
+                    echo "Successfully deployed and pm2 restarted"
+                }
+            }
+        }
+
+        stage('Building master branch') {
+            when { expression { env.BRANCH_NAME == 'master' } }
+            steps {
+                script {
+                    echo "Starting to build the image"
+                    sh 'docker build -t master .'
+                    sh 'docker run -dt --name master-auth -p 7000:7000 master'
+                }
+            }
+        }
+
+        stage('Copying master build and remove image') {
+            when { expression { env.BRANCH_NAME == 'master' } }
+            steps {
+                script {
+                    echo "Copying build folder"
+                    sh 'docker cp master-auth:/app/. .'
+                    sh 'docker stop master-auth && docker rm master-auth && docker rmi master'
+                }
+            }
+        }
+
+        stage('Deploy master branch') {
+            when { expression { env.BRANCH_NAME == 'master' } }
+            steps {
+                script {
+                    echo "Starting deploying master branch"
+                    sh 'rsync -zvhr -e ssh . ubuntu@3.7.126.140:/home/ubuntu/live-shopping-prod/live-shopping-authentication-node-service/'
+                    sh """ ssh ubuntu@3.7.126.140 'pm2 restart live-shopping-auth-node-svc-prod' """
+                    echo "Successfully deployed and pm2 restarted"
+                }
+            }
+        }
+        // stage('Build master branch') {
+        //     when { expression { env.BRANCH_NAME == 'master' } }
+        //     steps {
+        //           withAWS(credentials: 'live-shopping-aws-key', region: 'ap-south-1') {
+        //               sh "aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 215624188455.dkr.ecr.ap-south-1.amazonaws.com"      
+        //               sh "docker build -t live-shopping-authentication-node-service-prod ."
+        //               sh "docker tag live-shopping-authentication-node-service-prod:latest 215624188455.dkr.ecr.ap-south-1.amazonaws.com/live-shopping-authentication-node-service-prod:latest"
+        //               sh "docker push 215624188455.dkr.ecr.ap-south-1.amazonaws.com/live-shopping-authentication-node-service-prod:latest"
+        //               sh "docker rmi live-shopping-authentication-node-service-prod:latest"
+        //               sh "docker rmi 215624188455.dkr.ecr.ap-south-1.amazonaws.com/live-shopping-authentication-node-service-prod:latest"   
+        //           }
+        //     } 
+        // }
+        // stage('Deploy master branch') {
+        //     when { expression { env.BRANCH_NAME == 'master' } }
+        //     steps {
+        //           withAWS(credentials: 'live-shopping-aws-key', region: 'ap-south-1') {
+        //               sh "aws eks update-kubeconfig --region ap-south-1 --name Live-shopping-EKS-prod"
+        //               sh "ssh -o StrictHostKeyChecking=no ubuntu@43.204.73.151 '/home/ubuntu/bin/kubectl apply -f /var/site/prod/live-shopping-authentication-node-service/deployment.yaml'"
+        //               sh "kubectl rollout restart deployment live-shopping-authentication-node-service-prod -n prod"
+        //           }     
+        //     }
+        // } 
+    }
+
+    post {
+        always {
+            cleanWs()
+            echo "All stages finished running"
+        }
+    }
+}
+

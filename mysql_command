@@ -1,0 +1,50 @@
+DEV & STAGE:
+Master username: liveshopping
+Master password:  PlOxWb7fAkBdJaPW2EMj
+DB_Host_url: live-shopping-rds-dev-stage.cab2vuwelsxm.ap-south-1.rds.amazonaws.com
+Port: 3306
+----------------------------------------------------------------------------
+PROD:
+Master username: admin
+Master password:  ecCPj7ZdAtrSQiX4e4VG
+DB_Host_url: live-shopping-prod.cab2vuwelsxm.ap-south-1.rds.amazonaws.com
+Port: 3306
+----------------------------------------------------------------------------
+show databases;
+
+CREATE USER 'admin-dev'@'%' IDENTIFIED BY 'dev@liveShopping';
+GRANT ALL PRIVILEGES ON live_shopping_dev.* TO 'admin-dev'@'%';
+FLUSH PRIVILEGES;
+
+CREATE USER 'admin-stage'@'%' IDENTIFIED BY 'stage@liveShopping';
+GRANT ALL PRIVILEGES ON live_shopping_stage.* TO 'admin-stage'@'%';
+FLUSH PRIVILEGES;
+
+CREATE USER 'admin-prod'@'%' IDENTIFIED BY 'prod@liveShopping';
+GRANT ALL PRIVILEGES ON live_shopping_prod.* TO 'admin-prod'@'%';
+FLUSH PRIVILEGES;
+--------------------------------------------------------------------------
+username: admin-dev
+password: dev@liveShopping
+DB_Host_url: live-shopping-rds-dev-stage.cab2vuwelsxm.ap-south-1.rds.amazonaws.com
+Port: 3306
+------------------------------------------------------------------------
+username: admin-stage
+password: stage@liveShopping
+DB_Host_url: live-shopping-rds-dev-stage.cab2vuwelsxm.ap-south-1.rds.amazonaws.com
+Port: 3306
+-------------------------------------------------------------------------
+username: admin-prod
+password: prod@liveShopping
+DB_Host_url: live-shopping-prod.cab2vuwelsxm.ap-south-1.rds.amazonaws.com
+Port: 3306
+-----------------------------------------------------------------------------
+Backup_Command:
+mysqldump -h live-shopping-rds-dev-stage.cab2vuwelsxm.ap-south-1.rds.amazonaws.com -u liveshopping -p live_shopping_stage > live_shopping_stage_backup.sql
+
+Restore_Command:
+mysql -h live-shopping-rds-dev-stage.cab2vuwelsxm.ap-south-1.rds.amazonaws.com -u liveshopping -p live_shopping_stage < live_shopping_stage_backup.sql
+------------------------------------------------------------------------------
+
+
+

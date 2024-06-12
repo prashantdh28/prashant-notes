@@ -1,0 +1,240 @@
+image: node:16.20.2
+
+options:
+  docker: true
+  size: 2x
+
+definitions:
+  services:
+    docker:
+      memory: 4096
+
+pipelines:
+  pull-requests:
+    '{feature/*,fixes/*,refactor/*,hotfix/*}':
+      - step:
+          name: SonarQube analysis
+          services:
+            - docker
+          script:
+            - if [ "${BITBUCKET_PR_DESTINATION_BRANCH}" = "development" ] || [ "${BITBUCKET_PR_DESTINATION_BRANCH}" = "stage" ]; then printf 'Working '; else exit ; fi && echo $BITBUCKET_PR_DESTINATION_BRANCH
+            - pipe: sonarsource/sonarqube-scan:1.0.0
+              variables:
+                SONAR_HOST_URL: ${SONAR_HOST_URL_DEV}
+                SONAR_TOKEN: ${SONAR_TOKEN_DEV}
+            - pipe: sonarsource/sonarqube-quality-gate:1.1.0
+              variables:
+                SONAR_TOKEN: ${SONAR_TOKEN_DEV}
+      - step:
+          name: Git Auto Merge
+          script:
+            - echo "Source branch is $BITBUCKET_BRANCH --> Destination branch is $BITBUCKET_PR_DESTINATION_BRANCH"
+            - git remote set-url origin ${BITBUCKET_GIT_SSH_ORIGIN}
+            - git fetch origin
+            - git checkout $BITBUCKET_PR_DESTINATION_BRANCH
+            - git pull origin $BITBUCKET_BRANCH
+            - git push origin $BITBUCKET_PR_DESTINATION_BRANCH
+
+  branches:
+    development:
+      # - step:
+      #     name: SonarQube analysis
+      #     services:
+      #       - docker
+      #     script:
+      #       - pipe: sonarsource/sonarqube-scan:1.0.0
+      #         variables:
+      #           SONAR_HOST_URL: ${SONAR_HOST_URL_DEV}
+      #           SONAR_TOKEN: ${SONAR_TOKEN_DEV}
+      # - pipe: sonarsource/sonarqube-quality-gate:1.1.0
+      #   variables:
+      #     SONAR_TOKEN: ${SONAR_TOKEN_DEV}
+
+      - step:
+          name: Docker Image Build and upload to ECR
+          script:
+            - echo "Building Docker Image"
+            - docker build -t global-play-api-nodejs:latest .
+
+            - echo "Succesfully build image ---- Pushing to ECR"
+            - pipe: atlassian/aws-ecr-push-image:1.6.2
+              variables:
+                AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+                AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+                AWS_DEFAULT_REGION: 'us-east-1'
+                IMAGE_NAME: 'global-play-api-nodejs'
+                TAGS: 'latest'
+
+      - step:
+          name: Deployment to EKS
+          deployment: Test
+          script:
+            - pipe: atlassian/aws-eks-kubectl-run:2.2.0
+              variables:
+                AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+                AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+                AWS_DEFAULT_REGION: 'us-east-1'
+                CLUSTER_NAME: 'dev-stage-eks-funfull'
+                KUBECTL_COMMAND: 'rollout restart deploy global-play-api-nodejs -n dev'
+
+    # - step:
+    #     name: Deploy to Development
+    #     caches:
+    #       - node
+    #     size: 2x # Total memory is 8GB
+    #     script:
+    #       - npm i
+    #       - export NODE_OPTIONS=--max-old-space-size=8192
+    #       - apt update && apt install rsync -y
+    #       - rsync -zvhr -e ssh . $SSH_USER_DEV@$SERVER_IP_DEV:/var/sites/dev/global-play-api-nodejs --delete-before --exclude 'firebase-admin-sdk.json' --exclude '.env'
+    #       - ssh $SSH_USER_DEV@$SERVER_IP_DEV 'pm2 restart globalplay-dev-api'
+
+    stage:
+      - step:
+          name: STAGE -- Docker Image Build and upload to ECR
+          script:
+            - echo "Building Docker Image"
+            - docker build -t global-play-api-nodejs-stage:latest .
+
+            - echo "Succesfully build image ---- Pushing to ECR"
+            - pipe: atlassian/aws-ecr-push-image:1.6.2
+              variables:
+                AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+                AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+                AWS_DEFAULT_REGION: 'us-east-1'
+                IMAGE_NAME: 'global-play-api-nodejs-stage'
+                TAGS: 'latest'
+
+      - step:
+          name: STAGE -- Deployment to EKS
+          deployment: staging
+          script:
+            - pipe: atlassian/aws-eks-kubectl-run:2.2.0
+              variables:
+                AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+                AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+                AWS_DEFAULT_REGION: 'us-east-1'
+                CLUSTER_NAME: 'dev-stage-eks-funfull'
+                KUBECTL_COMMAND: 'rollout restart deploy global-play-api-nodejs-stage -n dev'
+
+    # stage:
+    #   - step:
+    #       name: Deploy to stage
+    #       deployment: staging
+    #       script:
+    #         - echo "Deploying to stage environment"
+    #         - pipe: atlassian/ssh-run:0.2.2
+    #           variables:
+    #             SSH_USER: $SSH_USER_DEV
+    #             SERVER: $SERVER_IP_DEV
+    #             PORT: $PORT
+    #             COMMAND: "/home/ec2-user/gitpull-stage.sh"
+
+    pre-production:
+      - step:
+          name: Preprod -- Docker Image Build and upload to ECR
+          script:
+            - echo "Building Docker Image"
+            - docker build -t global-play-api-nodejs-preprod .
+
+            - echo "Succesfully build image ---- Pushing to ECR"
+            - pipe: atlassian/aws-ecr-push-image:1.6.2
+              variables:
+                AWS_ACCESS_KEY_ID: ${AWS_PREPROD_ACCESS_KEY_ID}
+                AWS_SECRET_ACCESS_KEY: ${AWS_PREPROD_SECRET_ACCESS_KEY}
+                AWS_DEFAULT_REGION: 'us-east-1'
+                IMAGE_NAME: 'global-play-api-nodejs-preprod'
+                TAGS: 'latest'
+
+      - step:
+          name: Preprod -- Deployment to EKS
+          deployment: pre-prod
+          script:
+            - pipe: atlassian/aws-eks-kubectl-run:2.2.0
+              variables:
+                AWS_ACCESS_KEY_ID: ${AWS_PREPROD_ACCESS_KEY_ID}
+                AWS_SECRET_ACCESS_KEY: ${AWS_PREPROD_SECRET_ACCESS_KEY}
+                AWS_DEFAULT_REGION: 'us-east-1'
+                CLUSTER_NAME: 'preprod-eks-funfull'
+                KUBECTL_COMMAND: 'rollout restart deploy global-play-api-nodejs-preprod -n preprod'
+
+    uat:
+      - step:
+          name: UAT -- Docker Image Build and upload to ECR
+          script:
+            - echo "Building Docker Image"
+            - docker build -t global-play-api-nodejs-uat .
+
+            - echo "Succesfully build image ---- Pushing to ECR"
+            - pipe: atlassian/aws-ecr-push-image:1.6.2
+              variables:
+                AWS_ACCESS_KEY_ID: ${AWS_PREPROD_ACCESS_KEY_ID}
+                AWS_SECRET_ACCESS_KEY: ${AWS_PREPROD_SECRET_ACCESS_KEY}
+                AWS_DEFAULT_REGION: 'us-east-1'
+                IMAGE_NAME: 'global-play-api-nodejs-uat'
+                TAGS: 'latest'
+
+      - step:
+          name: UAT -- Deployment to EKS
+          script:
+            - pipe: atlassian/aws-eks-kubectl-run:2.2.0
+              variables:
+                AWS_ACCESS_KEY_ID: ${AWS_PREPROD_ACCESS_KEY_ID}
+                AWS_SECRET_ACCESS_KEY: ${AWS_PREPROD_SECRET_ACCESS_KEY}
+                AWS_DEFAULT_REGION: 'us-east-1'
+                CLUSTER_NAME: 'preprod-eks-funfull'
+                KUBECTL_COMMAND: 'rollout restart deploy global-play-api-nodejs-uat -n uat'
+
+    # pre-production:
+    #   - step:
+    #       name: Deploy to pre-prod
+    #       deployment: pre-prod
+    #       script:
+    #         - echo "Deploying to Pre-Prod environment"
+    #         - pipe: atlassian/ssh-run:0.2.2
+    #           variables:
+    #             SSH_USER: $SSH_USER_PRE_PROD
+    #             SERVER: $SSH_IP_PRE_PROD
+    #             PORT: $PORT
+    #             COMMAND: "/home/ec2-user/gitpull-pre-prod.sh"
+
+    master:
+      - step:
+          name: Production -- Docker Image Build and upload to ECR
+          script:
+            - echo "Building Docker Image"
+            - docker build -t global-play-api-nodejs-prod .
+
+            - echo "Succesfully build image ---- Pushing to ECR"
+            - pipe: atlassian/aws-ecr-push-image:1.6.2
+              variables:
+                AWS_ACCESS_KEY_ID: ${AWS_PROD_ACCESS_KEY_ID}
+                AWS_SECRET_ACCESS_KEY: ${AWS_PROD_SECRET_ACCESS_KEY}
+                AWS_DEFAULT_REGION: 'us-east-1'
+                IMAGE_NAME: 'global-play-api-nodejs-prod'
+                TAGS: 'latest'
+
+      - step:
+          name: Production -- Deployment to EKS
+          deployment: Production
+          script:
+            - pipe: atlassian/aws-eks-kubectl-run:2.2.0
+              variables:
+                AWS_ACCESS_KEY_ID: ${AWS_PROD_ACCESS_KEY_ID}
+                AWS_SECRET_ACCESS_KEY: ${AWS_PROD_SECRET_ACCESS_KEY}
+                AWS_DEFAULT_REGION: 'us-east-1'
+                CLUSTER_NAME: 'prod-eks-funfull'
+                KUBECTL_COMMAND: 'rollout restart deploy global-play-api-nodejs-prod -n prod'
+
+    # master:
+    #   - step:
+    #       name: Deploy to Prod
+    #       deployment: Production
+    #       script:
+    #         - echo "Deploying to Prod environment"
+    #         - pipe: atlassian/ssh-run:0.2.2
+    #           variables:
+    #             SSH_USER: $SSH_USER
+    #             SERVER: $SERVER_IP
+    #             PORT: $PORT
+    #             COMMAND: "/home/ec2-user/gitpull-prod.sh"

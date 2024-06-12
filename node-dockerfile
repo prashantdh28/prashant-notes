@@ -1,0 +1,19 @@
+FROM node:18.17.0
+
+WORKDIR /app
+
+COPY package*.json ./
+
+# Install sharp dependencies
+RUN npm install
+
+RUN npm install --force @img/sharp-linux-x64
+
+COPY . .
+
+# Build the application
+RUN npm run build
+
+EXPOSE 7000
+
+CMD [ "node", "./build/src/main.js" ]

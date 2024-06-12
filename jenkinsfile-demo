@@ -1,0 +1,108 @@
+pipeline {
+    agent any
+    environment {
+        PATH = "/opt/sonar-scanner/bin:$PATH"
+    }
+    stages {     
+        stage('SonarQube analysis for Development') {
+            when {
+                expression { return (env.CHANGE_BRANCH ==~ /^(feature|fixes|hotfix)\/.*$/) && env.CHANGE_TARGET == 'development' }
+            }
+            steps {
+                withSonarQubeEnv('TASKOPAD_SONAR_HOST_URL') {
+                    sh 'sonar-scanner -X -Dsonar.projectKey=connected-assets-super-admin-ms-apis-nodejs -Dsonar.projectName="connected-assets-super-admin-ms-apis-nodejs" -Dsonar.qualitygate.wait=true -Dsonar.newCode=true -Dsonar.login=0da72cf07a8cfec26f393ea53cab7079761ec6cd '
+		    echo "Auto merging"
+                    echo "SOURCE_BRANCH: ${env.CHANGE_BRANCH} ----> TARGET_BRANCH: ${env.CHANGE_TARGET}"
+                    sh 'rm -rf connected-assets-super-admin-ms-apis-nodejs'
+                    sh 'git clone git@bitbucket.org:solutionanalystspvtltd/connected-assets-super-admin-ms-apis-nodejs.git'
+                    dir('connected-assets-super-admin-ms-apis-nodejs') {
+                        sh 'ls -lrta && pwd'
+                        sh 'git fetch origin'
+                        sh 'git branch -a'
+                        sh 'git config --global user.email manhar.dangar@solutionanalysts.com'
+                        sh 'git config --global user.name manhardangarsa'
+                        sh 'git checkout $CHANGE_TARGET'
+                        sh 'git merge origin/$CHANGE_BRANCH'
+                        sh 'git push origin $CHANGE_TARGET'
+                    }
+                }
+            }
+        }
+        // Build image and push to ECR Repo for dev
+        stage('Build Dev') {
+            when { branch 'development' }
+            steps {
+                script {
+                    sh 'docker build -t 062519167978.dkr.ecr.ap-south-1.amazonaws.com/connected-assets-super-admin-ms-apis-nodejs-dev:latest .'
+                }
+            }
+        }
+        stage('Push to ECR Dev') {
+            when { branch 'development' }
+            steps {
+                withAWS(credentials: 'connected-assets', region: 'ap-south-1') {
+                    sh '''
+                        aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 062519167978.dkr.ecr.ap-south-1.amazonaws.com
+                        docker push 062519167978.dkr.ecr.ap-south-1.amazonaws.com/connected-assets-super-admin-ms-apis-nodejs-dev:latest
+                        docker rmi 062519167978.dkr.ecr.ap-south-1.amazonaws.com/connected-assets-super-admin-ms-apis-nodejs-dev:latest
+                    '''
+                }
+            }
+        }
+        stage('Deploy to DEV EKS Cluster') {
+            when { branch 'development' }
+            steps {
+                withAWS(credentials: 'connected-assets', region: 'ap-south-1') {
+                    sh '''
+                        aws eks update-kubeconfig --region ap-south-1 --name connected-assets-EKS-dev-stage
+                        kubectl config use-context arn:aws:eks:ap-south-1:062519167978:cluster/connected-assets-EKS-dev-stage
+                        kubectl rollout restart deployment connected-assets-super-admin-ms-apis-nodejs-dev -n dev
+                    '''
+                }
+            }
+        }
+        // Build image and push to ECR Repo for stage
+        stage('Build Stage') {
+            when { branch 'stage' }
+            steps {
+                script {
+                    sh 'docker build -t 062519167978.dkr.ecr.ap-south-1.amazonaws.com/connected-assets-super-admin-ms-apis-nodejs-stage:latest .'
+                }
+            }
+        }
+        stage('Push to ECR Stage') {
+            when { branch 'stage' }
+            steps {
+                withAWS(credentials: 'connected-assets', region: 'ap-south-1') {
+                    sh '''
+                        aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 062519167978.dkr.ecr.ap-south-1.amazonaws.com
+                        docker push 062519167978.dkr.ecr.ap-south-1.amazonaws.com/connected-assets-super-admin-ms-apis-nodejs-stage:latest
+                        docker rmi 062519167978.dkr.ecr.ap-south-1.amazonaws.com/connected-assets-super-admin-ms-apis-nodejs-stage:latest
+                    '''
+                }
+            }
+        }
+        stage('Deploy to Stage EKS Cluster') {
+            when { branch 'stage' }
+            steps {
+                withAWS(credentials: 'connected-assets', region: 'ap-south-1') {
+                    sh '''
+                        aws eks update-kubeconfig --region ap-south-1 --name connected-assets-EKS-dev-stage
+                        kubectl config use-context arn:aws:eks:ap-south-1:062519167978:cluster/connected-assets-EKS-dev-stage
+                        kubectl rollout restart deployment connected-assets-super-admin-ms-apis-nodejs-stage -n stage
+                    '''
+                }
+            }
+        }
+    }
+post {
+    unstable {
+        print "Job finished unstably"
+        emailext body: """Hi, \nThe pipeline at Jenkins finished unstably. Please go over to the Jenkins and check it out.<p>You can also check build logs at below attachment.</p></p>\nThanks!""", subject: "The pipeline Job ${env.JOB_NAME} : has ${currentBuild.currentResult}", to: 'manhar.dangar@solutionanalysts.com,rajan.shah', mimeType: 'text/html', replyTo: '$DEFAULT_REPLYTO', attachLog: true
+    }
+    failure {
+        print "Job failed - Fix me"
+        emailext body: """Hi, \nThe pipeline at Jenkins has been failed. Please go over to the Jenkins and check it out.<p>You can also check build logs at below attachment.</p>\nThanks!""", subject: "The pipeline Job ${env.JOB_NAME} : has ${currentBuild.currentResult}", to: 'manhar.dangar@solutionanalysts.com,rajan.shah', mimeType: 'text/html', replyTo: '$DEFAULT_REPLYTO', attachLog: true
+    }                
+    }
+}

@@ -1,0 +1,23 @@
+[Unit]
+Description=tid-prod Service
+After=syslog.target network.target
+
+[Service]
+SuccessExitStatus=143
+
+User=ubuntu
+Group=ubuntu
+
+Type=simple
+
+ExecStart=/usr/bin/java -jar /home/ubuntu/gambitcyber/prod/tid/target/tld-0.0.1-SNAPSHOT.jar --spring.profiles.active=ec2
+ExecStop=/bin/kill -15 $MAINPID
+Environment="TRUST_STORE_PATH=/home/ubuntu/truststore/fullchain.pem"
+Environment="ELASTICSEARCH_USERNAME_PROD=elastic"
+Environment="ELASTICSEARCH_PASSWORD_PROD=XnDLVFd+Ajf3lVz3kKBA"
+StandardOutput=append:/var/log/tid-prod.log
+StandardError=append:/var/log/tid-prod.log
+
+[Install]
+WantedBy=multi-user.target
+
