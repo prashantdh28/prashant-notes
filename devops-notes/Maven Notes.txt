@@ -1,0 +1,278 @@
+#############
+Apache Maven
+#############
+
+-> Maven is a build automation tool for java projects
+
+-> Maven is a free and open-source software 
+
+-> Maven developed by Apache organization
+
+-> Maven s/w developed using Java
+
+
+######################################
+What are the main objectives of Maven?
+######################################
+
+-> Simplify the build process
+
+-> Uniform Build System
+
+-> Encouraging Best Practises
+
+##########################
+What we can do using Maven
+##########################
+
+1) Create Project Folder Structure (interactive mode & batch mode)
+
+2) Download Required Dependencies (Ex: Spring, Hibernate, Kafka, JUnit etc...)
+
+3) Project Compilation 
+
+4) Unit Tests execution
+
+5) Project Packaging ( jar or war )
+
+
+######################
+Maven Setup in Windows
+######################
+
+***************************************Step-1: Download and Install Java software************************************
+
+URL To Download: https://www.oracle.com/in/java/technologies/javase/javase8-archive-downloads.html
+
+		-> We need to create an account on the Oracle website to download java
+		-> Login to the oracle website and download JDK
+		-> Install JDK  (it will install both jdk and jre)
+		-> Set JAVA_HOME in Environment Variables
+
+			Ex:	JAVA_HOME = C:\Program Files\Java\jdk1.8.0_202
+
+		-> Set JAVA Path	in Environment Variables
+
+			Ex: Path = C:\Program Files\Java\jdk1.8.0_202\bin
+
+		-> Open the command prompt and check the java version
+
+			$ java -version
+
+*************************************************** Step-2: Download and Setup Maven*********************************
+		
+URL To Download : https://dlcdn.apache.org/maven/maven-3/3.8.6/binaries/apache-maven-3.8.6-bin.zip
+
+-> Download apache maven zip file using above url
+
+-> Extract Zip file
+
+-> Keep apache-maven folder in C drive (it is optional step)
+
+-> Set MAVEN_HOME  in System Env Variable
+
+			Ex: M2_HOME = C:\apache-maven-3.8.5
+
+-> Set Maven Path in System Env variable
+
+			Ex: Path = C:\apache-maven-3.8.5\bin;
+
+-> Open command prompt and check maven vesion
+
+			$ mvn -version
+
+
+#####################
+Creating Maven Project
+######################
+
+->  We can create maven project in 2 ways
+
+
+1) Interactive Mode
+
+$ mvn archetype:generate
+
+-> It will ask to select few details to create the project
+
+archetype : It represents type of the project ( Ex: maven-archetype-quickstart )
+
+groupId : It represets our company name  (Ex: in.ashokit )
+
+artifactId : It presents our project name ( Ex: sbi_customer_name)
+
+version : It represents version of the application ( Ex: 1.0-SNAPSHOT )
+
+			Under Development PRoject version : SNAPSHOT
+			Development Completed version : RELEASE
+
+
+2) Batch Mode
+
+
+$ mvn archetype:generate -DgroupId=com.mycompany.app -DartifactId=my-app -DarchetypeArtifactId=maven-archetype-quickstart -DarchetypeVersion=1.4 -DinteractiveMode=false
+
+
++++++++++++++++++++++++++++++++++++++++
+creating web application using maven
++++++++++++++++++++++++++++++++++++++++
+
+>> mvn archetype:generate -DarchetypeArtifactId=maven-archetype-webapp -DgroupId=in.ashokit -DartifactId=01-maven-web-app -DinteractiveMode=false
+
+++++++++++++++++++++++++++++++++++++++++++++
+
+Note: standalone projects will be packaged as a 'jar' file
+
+Note: web projects will be packaged as a 'war' file
+
+Note: To run the web application we need to create a war file. That war file we will deploy into the server
+
+
+-> The process of deploying application war into the server is called deployment.
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+###########
+Maven Goals
+############
+
+-> Maven goals are used to perform the Project Build process
+
+
+Syntax:   mvn <goal-name>
+
+
+clean: It is used to delete the target folder 
+
+compile: It is used to compile the source code of the project 
+
+test: It is used to execute Unit test cases of our application ( Junits )
+
+package:  It is used to Package our application ( jar or war )
+
+install: It is used to store build artifacts (like storing artifacts into nexus or jfrog repos)
+
+************** Note: when we execute the 'package' goal, internally it will execute 'compile' & 'test' goals *********************
+
+#################
+Build & Deployment
+#################
+
+
+-> The process of compiling and packaging the application is called 'Build'
+
+		Ex:    mvn clean package
+
+
+-> The process of uploading a war file to the server is called 'Deployment'
+
+
+Note: As DevOps engineers, we are responsible for Project Build & Deployment.
+
+
+#############################
+Maven Project Folder Structure
+##############################
+
+Project-Name  (root folder)
+	
+	- src/main/java    (It contains the main source code of the application)
+
+	- src/main/resources  (it contains application config files like ymls, xmls, properties etc...)
+
+	- src/test/java  (It contains unit test code - junits)
+	
+	- src/test/resources  (it contains unit test code config files)
+
+	- pom.xml  ( Project Object Model - Maven Configuration File)
+
+
+Note: We need to execute Maven Goals from Project Root Folder 
+
+
+-> Project dependencies we will configure in 'pom.xml'
+
+	Ex: spring, hibernate, Kafka, Redis, JUnit, logging, JDBC driver, etc.....
+
+-> Maven is responsible to download dependencies that are configured in the pom.xml file
+
+
+-> Maven will use the 'Repository' concept to download dependencies
+
+
+-> We have 3 types of Repositories in Maven
+
+1) Central Repository
+
+2) Remote Repository
+
+3) Local Repository
+
+
+
+1) What is Build Process?
+
+2) What is Deployment?
+
+3) Maven Introduction
+
+4) Maven Objectives
+
+5) What we can do using Maven
+
+6) Maven setup
+
+7) Maven Project Creation
+
+8) Maven Project Folder Structure
+
+9) Maven Goals Execution
+
+10) Maven Repositories (local, central & remote)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

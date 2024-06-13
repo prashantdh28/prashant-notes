@@ -1,0 +1,68 @@
+#########
+DevOps
+#########
+
+DevOps  =  Development + Operations
+
+
+-> Development team is responsible to develop the project (Coding)
+
+-> Operations team is responsible to deliver the project (Releasing)
+
+-> DevOps is a culture
+
+-> DevOps culture is used to simplify, automate &  speed up the Application delivery process
+
+-> DevOps is a process
+
+-> DevOps means a set of practices
+
+-> Using DevOps culture we can establish collaboration between Development & Operations Team
+
+
+##################
+DevOps Toolchain
+##################
+
+-> To automate the application delivery process we will use several tools those are called DevOps tools
+
+
+1) Maven / Gradle
+2) Git Hub / Bit Bucket
+3) SonarQube
+4) Nexus Repository (Artifactory Repo Server)
+5) Apache Tomcat
+6) Jenkins (CI-CD)
+7) Terraform (IaaC)
+8) Ansible (Configuration Mgmt)
+9) Docker (Containerization Platform)
+10) Kubernetes (Orchestration Platform)
+11) Prometheus (Monitoring & Alerts Tool)
+12) Grafana (Visulization Tools)
+13) ELK Stack (Elastic Search, Log Stash & Kibana)
+14) JIRA (Project Management)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
