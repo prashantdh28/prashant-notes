@@ -1,0 +1,144 @@
+ pipelines:
+      branches:
+        master:
+        - step:
+            name: npm install and npm build
+            image: node:16.14
+            caches:
+              - node
+            script:
+              - npm cache clean --force
+              - npm i --force
+              - npm run build-prod
+            artifacts:
+              - node_modules/**
+              - dist-prod/**
+        - step:
+            name: AWS configure
+            image: amazon/aws-cli
+            script:
+              - export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+              - export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+              - export AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION         
+        - step:
+            name: Deploy    
+            script:  
+              - pipe: atlassian/scp-deploy:1.2.1
+                variables:
+                  USER: 'ubuntu'
+                  SERVER: '$Prod_Server_IP'
+                  REMOTE_PATH: '/var/sites/sahas-admin-angular/'
+                  LOCAL_PATH: 'dist-prod/*'
+                  EXTRA_ARGS: ['-o', 'StrictHostKeyChecking=no']
+                  DEBUG: 'true'
+        # - step:
+        #     name: pm2 service restart     
+        #     script:  
+        #       - pipe: atlassian/ssh-run:0.4.1
+        #         variables:
+        #           SSH_USER: 'ubuntu'
+        #           SERVER: '$Prod_Server_IP'
+        #           COMMAND: 'pm2 restart sahas-media-api'
+        #           DEBUG: 'true'    
+        development:
+        - step:
+            name: npm install and npm build
+            image: node:16.14
+            caches:
+              - node
+            script:
+              - npm cache clean --force
+              - npm i --force
+              - npm run build-dev
+            artifacts:
+              - node_modules/**
+              - dist-dev/**
+        - step:
+            name: AWS configure
+            image: amazon/aws-cli
+            script:
+              - export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+              - export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+              - export AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION         
+        - step:
+            name: Deploy    
+            script:  
+              - pipe: atlassian/scp-deploy:1.2.1
+                variables:
+                  USER: 'ubuntu'
+                  SERVER: '$Server_IP'
+                  REMOTE_PATH: '/var/sites/dev/sahas-admin-angular/'
+                  LOCAL_PATH: 'dist-dev/*'
+                  EXTRA_ARGS: ['-o', 'StrictHostKeyChecking=no']
+                  DEBUG: 'true'
+        # - step:
+        #     name: pm2 service restart     
+        #     script:  
+        #       - pipe: atlassian/ssh-run:0.4.1
+        #         variables:
+        #           SSH_USER: 'ubuntu'
+        #           SERVER: '$Server_IP'
+        #           COMMAND: 'pm2 restart sahas-dev-media-api'
+        #           DEBUG: 'true'
+        stage:
+        - step:
+            name: npm install and npm build
+            image: node:16.14
+            caches:
+              - node
+            script:
+              - npm i 
+              - npm run build-stage
+            artifacts:
+              - node_modules/**
+              - dist-stage/**
+        - step:
+            name: AWS configure
+            image: amazon/aws-cli
+            script:
+              - export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+              - export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+              - export AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION         
+        - step:
+            name: Deploy    
+            script:  
+              - pipe: atlassian/scp-deploy:1.2.1
+                variables:
+                  USER: 'ubuntu'
+                  SERVER: '$Server_IP'
+                  REMOTE_PATH: '/var/sites/stage/sahas-admin-angular/'
+                  LOCAL_PATH: 'dist-stage/*'
+                  EXTRA_ARGS: ['-o', 'StrictHostKeyChecking=no']
+                  DEBUG: 'true'
+        # - step:
+        #     name: pm2 service restart     
+        #     script:  
+        #       - pipe: atlassian/ssh-run:0.4.1
+        #         variables:
+        #           SSH_USER: 'ubuntu'
+        #           SERVER: '$Server_IP'
+        #           COMMAND: 'pm2 restart sahas-stage-media-api'
+        #           DEBUG: 'true'
+      pull-requests:
+        '{feature/*,fixes/*,refactor/*,hotfix/*}':
+        - step:
+            name: SonarQube analysis
+            services: 
+              - docker
+            script:
+              - if [ "${BITBUCKET_PR_DESTINATION_BRANCH}" = "development" ] || [ "${BITBUCKET_PR_DESTINATION_BRANCH}" = "stage" ]; then printf 'Working '; else exit ; fi && echo $BITBUCKET_PR_DESTINATION_BRANCH
+            #  - set +e
+              - pipe: sonarsource/sonarqube-scan:1.0.0 
+                variables:
+                  SONAR_HOST_URL: https://sonarqube.sa-labs.info/ 
+                  SONAR_TOKEN: 79589f8fc0d6bb656ad69b5874ba8aa711d2c50d   
+            #  - set -e
+        - step:
+              name: Git Auto Merge
+              script:
+                - echo "Source branch is $BITBUCKET_BRANCH --> Destination branch is $BITBUCKET_PR_DESTINATION_BRANCH"
+                - git remote set-url origin ${BITBUCKET_GIT_SSH_ORIGIN}
+                - git fetch origin
+                - git checkout $BITBUCKET_PR_DESTINATION_BRANCH
+                - git pull origin $BITBUCKET_BRANCH
+                - git push origin $BITBUCKET_PR_DESTINATION_BRANCH  
